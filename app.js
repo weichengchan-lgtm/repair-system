@@ -6,6 +6,8 @@
   const refresh = document.querySelector("#refresh-list");
   const formMessage = document.querySelector("#form-message");
   const listMessage = document.querySelector("#list-message");
+  const filterMessage = document.querySelector("#filter-message");
+  const filters = document.querySelectorAll(".urgency-filters button");
   const list = document.querySelector("#repair-list");
   const timeFormat = new Intl.DateTimeFormat("zh-TW", {
     dateStyle: "medium",
@@ -21,6 +23,7 @@
     const item = document.createElement("li");
     const title = document.createElement("h3");
     const meta = document.createElement("p");
+    const urgency = document.createElement("span");
     const time = document.createElement("time");
     const description = document.createElement("p");
 
@@ -28,7 +31,9 @@
     meta.className = "repair-meta";
     time.dateTime = record.created_at;
     time.textContent = timeFormat.format(new Date(record.created_at));
-    meta.append(`${record.reporter_name} · 緊急程度 ${record.urgency} · ${record.status} · `, time);
+    urgency.textContent = `緊急程度 ${record.urgency}`;
+    if (record.urgency === "高") urgency.className = "urgency-high";
+    meta.append(`${record.reporter_name} · `, urgency, ` · ${record.status} · `, time);
     description.className = "repair-description";
     description.textContent = record.description;
     item.append(title, meta, description);
@@ -56,6 +61,29 @@
   }
 
   let listRequest = 0;
+  let records = [];
+  let selectedUrgency = "";
+
+  function renderRepairs() {
+    const visible = selectedUrgency
+      ? records.filter((record) => record.urgency === selectedUrgency)
+      : records;
+    list.replaceChildren(...visible.map(repairItem));
+    showMessage(filterMessage, records.length && !visible.length
+      ? `最近 20 筆沒有緊急程度為「${selectedUrgency}」的報修。`
+      : "");
+  }
+
+  for (const filter of filters) {
+    filter.addEventListener("click", () => {
+      selectedUrgency = filter.dataset.urgency;
+      for (const button of filters) {
+        button.setAttribute("aria-pressed", String(button === filter));
+      }
+      renderRepairs();
+    });
+  }
+
   async function loadRepairs() {
     const request = ++listRequest;
     refresh.disabled = true;
@@ -69,7 +97,9 @@
         .limit(20);
       if (request !== listRequest) return;
       if (error) throw error;
-      list.replaceChildren(...data.map(repairItem));
+      records = data;
+      renderRepairs();
+      for (const filter of filters) filter.disabled = false;
       showMessage(listMessage, data.length ? "" : "目前還沒有報修紀錄。");
     } catch {
       if (request === listRequest) {

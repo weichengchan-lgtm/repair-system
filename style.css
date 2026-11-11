@@ -78,7 +78,15 @@ button:not(:disabled):hover { background: #11475e; color: #fff; }
 .secondary { background: #edf5f8; color: #17455c; border-color: #b9ccd8; }
 .actions, .section-heading { display: flex; align-items: center; gap: .7rem 1rem; flex-wrap: wrap; }
 .section-heading { justify-content: space-between; }
-#list-message:not(:empty) { margin-top: .65rem; }
+.urgency-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.urgency-filters button { min-width: 2.75rem; padding-inline: .65rem; }
+.urgency-filters button[aria-pressed="true"] {
+  background: #175a73;
+  color: #fff;
+  border-color: #175a73;
+  box-shadow: inset 0 -3px 0 #a8dce8;
+}
+#list-message:not(:empty), #filter-message:not(:empty) { margin-top: .65rem; }
 .error { color: #a1232f; }
 .success { color: #116041; }
 
@@ -87,6 +95,14 @@ button:not(:disabled):hover { background: #11475e; color: #fff; }
 .repair-list li:first-child { margin-top: .8rem; }
 .repair-list li:last-child { padding-bottom: 0; }
 .repair-meta { font-size: .9rem; margin-block: .25rem .45rem; }
+.urgency-high {
+  display: inline-block;
+  background: #fce8ea;
+  color: #a1232f;
+  border-radius: .35rem;
+  padding-inline: .35rem;
+  font-weight: 700;
+}
 .repair-description { white-space: pre-wrap; }
 
 @media (max-width: 34rem) {
