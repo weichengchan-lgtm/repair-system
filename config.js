@@ -1,5 +1,4 @@
 window.repairConfig = Object.freeze({
   url: "https://ivtkqmeiophjmtjgfwac.supabase.co",
-  // 填入 Supabase 專案的公開金鑰。
-  publishableKey: "",
+  publishableKey: "sb_publishable_fEpx74XVnbmrKhzp8gp5Cg_Q4goC7mQ",
 });
