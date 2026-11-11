@@ -1,0 +1,95 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, "Microsoft JhengHei", sans-serif;
+  color: #182b38;
+  background: #eef3f6;
+  line-height: 1.55;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+h1, h2, h3, p { margin: 0; }
+
+.page {
+  width: min(100% - 2rem, 48rem);
+  margin-inline: auto;
+}
+
+.site-header {
+  background: #123349;
+  color: #fff;
+  padding-block: 1.65rem;
+}
+
+h1 { font-size: clamp(1.65rem, 5vw, 2.1rem); }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.05rem; }
+main { padding-block: 1.25rem 2rem; }
+
+.panel {
+  background: #fff;
+  border: 1px solid #d6e0e7;
+  border-radius: 1rem;
+  padding: clamp(1rem, 4vw, 1.75rem);
+  margin-bottom: 1rem;
+}
+
+.muted, .repair-meta { color: #486071; }
+.muted { margin-block: .4rem 1.25rem; }
+
+form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+label { display: grid; gap: .35rem; font-weight: 600; }
+.wide { grid-column: 1 / -1; }
+
+input, select, textarea, button {
+  font: inherit;
+  min-height: 2.75rem;
+  border-radius: .5rem;
+}
+
+input, select, textarea {
+  width: 100%;
+  border: 1px solid #8198a9;
+  background: #fff;
+  color: inherit;
+  padding: .55rem .7rem;
+}
+
+textarea { resize: vertical; }
+
+button {
+  border: 1px solid transparent;
+  padding: .5rem .95rem;
+  background: #175a73;
+  color: #fff;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:disabled { opacity: .65; cursor: default; }
+button:not(:disabled):hover { background: #11475e; color: #fff; }
+:focus-visible { outline: 3px solid #00799d; outline-offset: 2px; }
+
+.secondary { background: #edf5f8; color: #17455c; border-color: #b9ccd8; }
+.actions, .section-heading { display: flex; align-items: center; gap: .7rem 1rem; flex-wrap: wrap; }
+.section-heading { justify-content: space-between; }
+#list-message:not(:empty) { margin-top: .65rem; }
+.error { color: #a1232f; }
+.success { color: #116041; }
+
+.repair-list { list-style: none; padding: 0; margin: 0; }
+.repair-list li { border-top: 1px solid #d6e0e7; padding: .95rem 0; overflow-wrap: anywhere; }
+.repair-list li:first-child { margin-top: .8rem; }
+.repair-list li:last-child { padding-bottom: 0; }
+.repair-meta { font-size: .9rem; margin-block: .25rem .45rem; }
+.repair-description { white-space: pre-wrap; }
+
+@media (max-width: 34rem) {
+  form { grid-template-columns: minmax(0, 1fr); }
+  .actions { align-items: stretch; flex-direction: column; }
+}
