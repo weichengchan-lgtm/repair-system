@@ -61,7 +61,7 @@
               <option>不需表面處理</option>
               <option>熱浸鍍鋅</option>
               <option>電鍍（吊電）</option>
-              <option>電鍍（爐桶）</option>
+              <option>電鍍（滾鍍）</option>
               <option>機械鍍鋅</option>
               <option>噴漆</option>
             </select>
@@ -110,8 +110,8 @@
         </fieldset>
 
         <fieldset id="quote-schedule" hidden disabled>
-          <legend>報價需求總天數</legend>
-          <p class="hint wide">從業務提供資訊到提供報價給業務，依序填入各階段日期，系統會計算總天數。</p>
+          <legend>報價需求總天數（預計）</legend>
+          <p class="hint wide">從業務提供資訊到提供報價給業務，依序填入各階段的預計日期，系統會計算總天數。實際完成日期由開發部登入後在清單中填寫。</p>
           <label>1. 業務提供資訊
             <input name="info_provided_on" type="date" required>
           </label>
@@ -124,7 +124,7 @@
           <label>4. 提供報價給業務
             <input name="quote_delivered_on" type="date" required>
           </label>
-          <p class="wide schedule-summary">報價總天數：<output id="total-days" for="quote-form">尚未填完日期</output></p>
+          <p class="wide schedule-summary">預計總天數：<output id="total-days" for="quote-form">尚未填完日期</output></p>
           <p class="wide error" id="schedule-warning" role="status"></p>
         </fieldset>
 
@@ -137,6 +137,26 @@
         </div>
       </form>
       <noscript><p>請啟用 JavaScript 以使用開發／報價表單與清單。</p></noscript>
+    </section>
+
+    <section class="panel" aria-labelledby="auth-title">
+      <div class="section-heading">
+        <h2 id="auth-title">開發部登入</h2>
+        <button class="secondary" id="sign-out" type="button" hidden>登出</button>
+      </div>
+      <p class="muted" id="auth-status">開發部人員登入後，可在清單中更新處理狀態與實際完成日期。</p>
+      <form id="sign-in-form">
+        <label>電子郵件
+          <input name="email" type="email" autocomplete="username" maxlength="320" required>
+        </label>
+        <label>密碼
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <div class="wide actions">
+          <button id="sign-in" type="submit" disabled>登入</button>
+          <p id="auth-message" role="status"></p>
+        </div>
+      </form>
     </section>
 
     <section class="panel" aria-labelledby="list-title">

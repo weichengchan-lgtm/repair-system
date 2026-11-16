@@ -1,6 +1,6 @@
 const scope = self.registration.scope;
 const cachePrefix = `repair-registration:${scope}:`;
-const cacheName = `${cachePrefix}v2`;
+const cacheName = `${cachePrefix}v3`;
 const home = new URL("./", scope);
 const index = new URL("./index.html", scope);
 const offlinePage = new URL("./offline.html", scope);

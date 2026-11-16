@@ -135,6 +135,25 @@ button:not(:disabled):hover { background: #11475e; color: #fff; }
   padding-inline: .35rem;
   font-weight: 700;
 }
+.tag-success, .status {
+  display: inline-block;
+  border-radius: .35rem;
+  padding-inline: .35rem;
+  font-weight: 700;
+}
+.tag-success, .status-2 { background: #e3f4ec; color: #116041; }
+.status-0 { background: #eef1f4; color: #3c5262; }
+.status-1 { background: #fff3d6; color: #7a4b00; }
+
+.schedule-table { width: 100%; border-collapse: collapse; margin-top: .6rem; font-size: .92rem; }
+.schedule-table th, .schedule-table td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid #e3eaef; vertical-align: top; }
+.schedule-table thead th { color: #486071; font-weight: 600; background: #f4f8fa; }
+.schedule-table tbody th { font-weight: 600; }
+.schedule-total th, .schedule-total td { font-weight: 700; border-bottom: 0; }
+
+.progress-editor { margin-top: .7rem; border: 1px solid #b9ccd8; border-radius: .6rem; background: #f7fbfc; }
+.progress-editor summary { cursor: pointer; padding: .55rem .8rem; font-weight: 700; color: #17455c; }
+.progress-editor form { padding: 0 .8rem .8rem; }
 .quote-notes { white-space: pre-wrap; margin-top: .5rem; padding: .5rem .7rem; background: #f4f8fa; border-radius: .5rem; }
 
 @media (max-width: 34rem) {

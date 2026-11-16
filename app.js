@@ -3,7 +3,21 @@
 
   const MAX_TIERS = 5;
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const STATUSES = ["待處理", "處理中", "已完成"];
   const SCHEDULE_FIELDS = ["info_provided_on", "info_confirmed_on", "cost_evaluated_on", "quote_delivered_on"];
+  const ACTUAL_FIELDS = [
+    ["actual_info_confirmed_on", "實際確認資訊可用性"],
+    ["actual_cost_evaluated_on", "實際完成報價評估及成本計算"],
+    ["actual_quote_delivered_on", "實際提供報價給業務"],
+  ];
+  const COLUMNS = [
+    "id", "sales_name", "product_name", "product_category", "product_category_note",
+    "material", "quantity", "surface_treatment", "process_steps",
+    "needs_drawing", "needs_quote", "sample_quote", "mass_quote_quantities",
+    "quote_due_on", ...SCHEDULE_FIELDS, "quote_total_days",
+    ...ACTUAL_FIELDS.map(([name]) => name), "actual_total_days",
+    "notes", "status", "created_at",
+  ].join(",");
 
   const form = document.querySelector("#quote-form");
   const fields = form.elements;
@@ -22,6 +36,12 @@
   const addTier = document.querySelector("#add-tier");
   const totalDays = document.querySelector("#total-days");
   const scheduleWarning = document.querySelector("#schedule-warning");
+  const signInForm = document.querySelector("#sign-in-form");
+  const signIn = document.querySelector("#sign-in");
+  const signOut = document.querySelector("#sign-out");
+  const authStatus = document.querySelector("#auth-status");
+  const authMessage = document.querySelector("#auth-message");
+  const defaultAuthStatus = authStatus.textContent;
 
   const numberFormat = new Intl.NumberFormat("zh-TW");
   const timeFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeStyle: "short" });
@@ -46,7 +66,17 @@
     return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
 
-  // ---------- 表單互動 ----------
+  // 只比較相鄰且都有值的日期，找出後一階段早於前一階段的情況。
+  function scheduleProblem(dates) {
+    for (let i = 1; i < dates.length; i += 1) {
+      if (dates[i - 1] && dates[i] && dates[i] < dates[i - 1]) {
+        return "各階段日期須依序排列，後一階段不可早於前一階段。";
+      }
+    }
+    return "";
+  }
+
+  // ---------- 新增需求表單 ----------
 
   function toggleSection(element, visible) {
     element.hidden = !visible;
@@ -91,21 +121,8 @@
     return input;
   }
 
-  function scheduleValues() {
-    return SCHEDULE_FIELDS.map((name) => fields[name].value);
-  }
-
-  function scheduleProblem(dates) {
-    for (let i = 1; i < dates.length; i += 1) {
-      if (dates[i - 1] && dates[i] && dates[i] < dates[i - 1]) {
-        return "各階段日期須依序排列，後一階段不可早於前一階段。";
-      }
-    }
-    return "";
-  }
-
   function updateSchedule() {
-    const dates = scheduleValues();
+    const dates = SCHEDULE_FIELDS.map((name) => fields[name].value);
     const problem = scheduleProblem(dates);
     const [start, , , end] = dates;
     const due = fields.quote_due_on.value;
@@ -148,15 +165,16 @@
   });
   addTier.addEventListener("click", () => addTierRow().focus());
   form.addEventListener("submit", (event) => event.preventDefault());
+  signInForm.addEventListener("submit", (event) => event.preventDefault());
   resetForm();
 
-  // ---------- 清單 ----------
+  // ---------- 清單顯示 ----------
 
-  function detail(term, value) {
+  function detail(term, ...value) {
     const dt = document.createElement("dt");
     const dd = document.createElement("dd");
     dt.textContent = term;
-    dd.append(value);
+    dd.append(...value);
     return [dt, dd];
   }
 
@@ -178,6 +196,150 @@
     return kinds.join("、");
   }
 
+  function dueTag(record) {
+    if (record.actual_quote_delivered_on) {
+      return record.actual_quote_delivered_on > record.quote_due_on
+        ? tag("實際晚於需求時間", "tag-warning")
+        : tag("如期提供", "tag-success");
+    }
+    if (todayValue() > record.quote_due_on) return tag("已超過需求時間", "tag-warning");
+    if (record.quote_delivered_on > record.quote_due_on) return tag("預計晚於需求時間", "tag-warning");
+    return "";
+  }
+
+  function scheduleTable(record) {
+    const table = document.createElement("table");
+    const head = table.createTHead().insertRow();
+    const body = table.createTBody();
+    table.className = "schedule-table";
+    for (const text of ["階段", "預計", "實際"]) {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = text;
+      head.append(th);
+    }
+
+    const stages = [
+      ["業務提供資訊", record.info_provided_on, record.info_provided_on],
+      ["確認資訊可用性", record.info_confirmed_on, record.actual_info_confirmed_on],
+      ["完成報價評估及成本計算", record.cost_evaluated_on, record.actual_cost_evaluated_on],
+      ["提供報價給業務", record.quote_delivered_on, record.actual_quote_delivered_on],
+    ];
+    for (const [stage, planned, actual] of stages) {
+      const row = body.insertRow();
+      const th = document.createElement("th");
+      th.scope = "row";
+      th.textContent = stage;
+      row.append(th);
+      row.insertCell().textContent = formatDate(planned);
+      const cell = row.insertCell();
+      cell.textContent = actual ? formatDate(actual) : "—";
+      if (actual && actual > planned) {
+        cell.append(" ", tag(`延後 ${daysBetween(planned, actual)} 天`, "tag-warning"));
+      }
+    }
+
+    const total = body.insertRow();
+    const th = document.createElement("th");
+    th.scope = "row";
+    th.textContent = "總天數";
+    total.className = "schedule-total";
+    total.append(th);
+    total.insertCell().textContent = `${record.quote_total_days} 天`;
+    const elapsed = daysBetween(record.info_provided_on, todayValue());
+    total.insertCell().textContent = record.actual_total_days !== null
+      ? `${record.actual_total_days} 天`
+      : elapsed >= 0 ? `進行中（至今 ${elapsed} 天）` : "—";
+    return table;
+  }
+
+  function field(labelText, control) {
+    const label = document.createElement("label");
+    label.append(labelText, control);
+    return label;
+  }
+
+  function progressEditor(record) {
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    const editor = document.createElement("form");
+    const status = document.createElement("select");
+    const actions = document.createElement("div");
+    const save = document.createElement("button");
+    const message = document.createElement("p");
+
+    details.className = "progress-editor";
+    summary.textContent = "更新進度";
+    status.name = "status";
+    for (const value of STATUSES) status.add(new Option(value, value, false, value === record.status));
+    editor.append(field("處理狀態", status));
+
+    if (record.needs_quote) {
+      for (const [name, text] of ACTUAL_FIELDS) {
+        const input = document.createElement("input");
+        input.type = "date";
+        input.name = name;
+        input.value = record[name] ?? "";
+        input.min = record.info_provided_on;
+        input.max = todayValue();
+        editor.append(field(text, input));
+      }
+    }
+
+    save.type = "submit";
+    save.textContent = "儲存進度";
+    message.setAttribute("role", "status");
+    actions.className = "wide actions";
+    actions.append(save, message);
+    editor.append(actions);
+    details.append(summary, editor);
+
+    editor.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (save.disabled) return;
+
+      const changes = { status: status.value };
+      if (record.needs_quote) {
+        for (const [name] of ACTUAL_FIELDS) changes[name] = editor.elements[name].value || null;
+      }
+      const actual = ACTUAL_FIELDS.map(([name]) => changes[name]);
+      let problem = "";
+      if (record.needs_quote && actual.some((value, i) => value && actual.slice(0, i).some((prev) => !prev))) {
+        problem = "請依階段順序填寫實際日期，前一階段完成後才能填寫下一階段。";
+      } else if (record.needs_quote) {
+        problem = scheduleProblem([record.info_provided_on, ...actual]);
+      }
+      if (problem) {
+        showMessage(message, problem, "error");
+        return;
+      }
+
+      save.disabled = true;
+      showMessage(message, "正在儲存…");
+      try {
+        const { data, error } = await client
+          .from("new_product_requests")
+          .update(changes)
+          .eq("id", record.id)
+          .select(COLUMNS)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          showMessage(message, "沒有修改權限，請確認帳號已加入開發部編輯名單。", "error");
+          return;
+        }
+        records = records.map((item) => (item.id === data.id ? data : item));
+        renderQuotes();
+        showMessage(listMessage, `已更新「${data.product_name}」的進度。`, "success");
+      } catch {
+        showMessage(message, "儲存失敗，請確認日期順序與網路後再試一次。", "error");
+      } finally {
+        save.disabled = false;
+      }
+    });
+    return details;
+  }
+
   function quoteItem(record) {
     const item = document.createElement("li");
     const title = document.createElement("h3");
@@ -193,7 +355,7 @@
     meta.className = "quote-meta";
     time.dateTime = record.created_at;
     time.textContent = timeFormat.format(new Date(record.created_at));
-    meta.append(`業務 ${record.sales_name} · ${record.status} · `, time);
+    meta.append(`業務 ${record.sales_name} · `, tag(record.status, `status status-${STATUSES.indexOf(record.status)}`), " · ", time);
 
     details.className = "detail-list";
     details.append(
@@ -204,34 +366,24 @@
       ...detail("製圖", record.needs_drawing ? "需要製圖" : "不需製圖"),
       ...detail("報價", quoteSummary(record)),
     );
-
     if (record.needs_quote) {
-      const due = document.createElement("span");
-      due.append(formatDate(record.quote_due_on));
-      if (record.quote_delivered_on > record.quote_due_on) {
-        due.append(" ", tag("預計晚於需求時間", "tag-warning"));
-      }
-      const schedule = [
-        `提供資訊 ${formatDate(record.info_provided_on)}`,
-        `確認資訊 ${formatDate(record.info_confirmed_on)}`,
-        `評估成本 ${formatDate(record.cost_evaluated_on)}`,
-        `提供報價 ${formatDate(record.quote_delivered_on)}`,
-      ].join(" → ");
-      details.append(
-        ...detail("報價需求時間", due),
-        ...detail("報價總天數", `${record.quote_total_days} 天（${schedule}）`),
-      );
+      const due = dueTag(record);
+      details.append(...detail("報價需求時間", formatDate(record.quote_due_on), ...(due ? [" ", due] : [])));
     }
 
     item.append(title, meta, details);
+    if (record.needs_quote) item.append(scheduleTable(record));
     if (record.notes) {
       const notes = document.createElement("p");
       notes.className = "quote-notes";
       notes.textContent = record.notes;
       item.append(notes);
     }
+    if (isEditor) item.append(progressEditor(record));
     return item;
   }
+
+  // ---------- 連線與資料 ----------
 
   const config = window.quoteConfig;
   if (!config?.publishableKey?.startsWith("sb_publishable_")) {
@@ -243,7 +395,12 @@
   let client;
   try {
     client = window.supabase.createClient(config.url, config.publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storageKey: "new-product-quote-auth",
+      },
     });
   } catch {
     showMessage(formMessage, "無法初始化資料服務，請重新載入頁面或確認服務設定。", "error");
@@ -254,6 +411,9 @@
   let listRequest = 0;
   let records = [];
   let selectedCategory = "";
+  let isEditor = false;
+  let authRequest = 0;
+  let appliedUserId;
 
   function renderQuotes() {
     const visible = selectedCategory
@@ -282,13 +442,7 @@
     try {
       const { data, error } = await client
         .from("new_product_requests")
-        .select([
-          "sales_name", "product_name", "product_category", "product_category_note",
-          "material", "quantity", "surface_treatment", "process_steps",
-          "needs_drawing", "needs_quote", "sample_quote", "mass_quote_quantities",
-          "quote_due_on", ...SCHEDULE_FIELDS, "quote_total_days",
-          "notes", "status", "created_at",
-        ].join(","))
+        .select(COLUMNS)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(20);
@@ -306,6 +460,71 @@
       if (request === listRequest) refresh.disabled = false;
     }
   }
+
+  // ---------- 開發部登入 ----------
+
+  async function applySession(session) {
+    const user = session?.user ?? null;
+    const userId = user?.id ?? null;
+    // 切回分頁時 Supabase 可能再次通知 SIGNED_IN，同一帳號不重畫，避免清掉正在編輯的內容。
+    if (userId === appliedUserId) return;
+    appliedUserId = userId;
+    const request = ++authRequest;
+
+    let editor = false;
+    let status = defaultAuthStatus;
+    if (user) {
+      const { data, error } = await client
+        .from("quote_editors")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (request !== authRequest) return;
+      editor = !error && Boolean(data);
+      if (error) status = `已登入 ${user.email}，但目前無法確認修改權限，請重新整理頁面。`;
+      else if (editor) status = `已登入 ${user.email}，可在清單各筆需求展開「更新進度」修改處理狀態與實際日期。`;
+      else status = `已登入 ${user.email}，但此帳號尚未加入開發部編輯名單，無法修改資料，請聯絡管理員。`;
+    }
+
+    isEditor = editor;
+    authStatus.textContent = status;
+    signInForm.hidden = Boolean(user);
+    signOut.hidden = !user;
+    renderQuotes();
+  }
+
+  client.auth.onAuthStateChange((event, session) => {
+    if (!["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT"].includes(event)) return;
+    // 不在回呼中直接等待 Supabase 查詢，避免與驗證流程互相等待。
+    setTimeout(() => void applySession(session), 0);
+  });
+
+  signInForm.addEventListener("submit", async () => {
+    if (signIn.disabled) return;
+    const data = new FormData(signInForm);
+    signIn.disabled = true;
+    showMessage(authMessage, "正在登入…");
+    try {
+      const { error } = await client.auth.signInWithPassword({
+        email: data.get("email").trim(),
+        password: data.get("password"),
+      });
+      if (error) throw error;
+      signInForm.reset();
+      showMessage(authMessage, "");
+    } catch {
+      showMessage(authMessage, "登入失敗，請確認電子郵件與密碼。", "error");
+    } finally {
+      signIn.disabled = false;
+    }
+  });
+
+  signOut.addEventListener("click", async () => {
+    signOut.disabled = true;
+    const { error } = await client.auth.signOut({ scope: "local" });
+    signOut.disabled = false;
+    if (error) showMessage(authMessage, "登出失敗，請重新整理頁面後再試一次。", "error");
+  });
 
   function buildRecord() {
     const data = new FormData(form);
@@ -375,5 +594,6 @@
 
   refresh.addEventListener("click", loadQuotes);
   submit.disabled = false;
+  signIn.disabled = false;
   void loadQuotes();
 })();
