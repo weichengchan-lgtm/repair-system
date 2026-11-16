@@ -2,6 +2,14 @@
 
 業務提出新產品開發或報價需求時，以這個網頁登記需求內容，開發部可在同一頁查看最近的需求與報價時程。
 
+## 開啟 APP
+
+用手機掃描 QR Code，或直接開啟 <https://weichengchan-lgtm.github.io/repair-system/>。開啟後可依「安裝到主畫面」的說明安裝成 APP。
+
+<img src="文件/app-qrcode.png" alt="新產品開發/報價 APP 的 QR Code" width="280">
+
+需要大尺寸列印時，請使用 [SVG 版 QR Code](文件/app-qrcode.svg)。
+
 ## 表單內容
 
 | 區塊 | 欄位 |
