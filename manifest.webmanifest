@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "開發部新產品開發／報價",
-  "short_name": "開發報價",
+  "name": "新產品開發/報價",
+  "short_name": "新產品開發/報價",
   "lang": "zh-Hant",
   "start_url": "./",
   "scope": "./",
