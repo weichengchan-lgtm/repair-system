@@ -7,8 +7,9 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; }
-h1, h2, h3, p { margin: 0; }
+h1, h2, h3, p, dl, dd { margin: 0; }
 
 .page {
   width: min(100% - 2rem, 48rem);
@@ -21,6 +22,8 @@ h1, h2, h3, p { margin: 0; }
   padding-block: 1.65rem;
 }
 
+
+.eyebrow { font-size: .9rem; font-weight: 600; color: #a8dce8; letter-spacing: .08em; }
 h1 { font-size: clamp(1.65rem, 5vw, 2.1rem); }
 h2 { font-size: 1.25rem; }
 h3 { font-size: 1.05rem; }
@@ -34,7 +37,7 @@ main { padding-block: 1.25rem 2rem; }
   margin-bottom: 1rem;
 }
 
-.muted, .repair-meta { color: #486071; }
+.muted, .quote-meta, .hint, .detail-list dt { color: #486071; }
 .muted { margin-block: .4rem 1.25rem; }
 
 form {
@@ -42,6 +45,33 @@ form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
+
+form > fieldset {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #d6e0e7;
+  border-radius: .75rem;
+}
+
+legend { font-weight: 700; padding-inline: .35rem; }
+.choices { min-width: 0; margin: 0; padding: 0; border: 0; }
+.choices legend { font-weight: 600; padding: 0 0 .35rem; }
+.choice-group { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; }
+label.choice { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.75rem; font-weight: 500; cursor: pointer; }
+.choice input { width: 1.2rem; height: 1.2rem; min-height: 0; margin: 0; accent-color: #175a73; }
+.hint { font-size: .9rem; margin-bottom: .5rem; }
+
+.tier-list { list-style: none; padding: 0; margin: 0 0 .75rem; display: grid; gap: .6rem; }
+.tier-list li { display: flex; align-items: end; gap: .6rem; }
+.tier-list label { flex: 1; }
+.schedule-summary { font-weight: 600; }
+.schedule-summary output { color: #175a73; font-size: 1.15rem; }
+#schedule-warning:empty { display: none; }
 
 label { display: grid; gap: .35rem; font-weight: 600; }
 .wide { grid-column: 1 / -1; }
@@ -78,9 +108,9 @@ button:not(:disabled):hover { background: #11475e; color: #fff; }
 .secondary { background: #edf5f8; color: #17455c; border-color: #b9ccd8; }
 .actions, .section-heading { display: flex; align-items: center; gap: .7rem 1rem; flex-wrap: wrap; }
 .section-heading { justify-content: space-between; }
-.urgency-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
-.urgency-filters button { min-width: 2.75rem; padding-inline: .65rem; }
-.urgency-filters button[aria-pressed="true"] {
+.category-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.category-filters button { min-width: 2.75rem; padding-inline: .65rem; }
+.category-filters button[aria-pressed="true"] {
   background: #175a73;
   color: #fff;
   border-color: #175a73;
@@ -90,12 +120,14 @@ button:not(:disabled):hover { background: #11475e; color: #fff; }
 .error { color: #a1232f; }
 .success { color: #116041; }
 
-.repair-list { list-style: none; padding: 0; margin: 0; }
-.repair-list li { border-top: 1px solid #d6e0e7; padding: .95rem 0; overflow-wrap: anywhere; }
-.repair-list li:first-child { margin-top: .8rem; }
-.repair-list li:last-child { padding-bottom: 0; }
-.repair-meta { font-size: .9rem; margin-block: .25rem .45rem; }
-.urgency-high {
+.quote-list { list-style: none; padding: 0; margin: 0; }
+.quote-list > li { border-top: 1px solid #d6e0e7; padding: .95rem 0; overflow-wrap: anywhere; }
+.quote-list > li:first-child { margin-top: .8rem; }
+.quote-list > li:last-child { padding-bottom: 0; }
+.quote-meta { font-size: .9rem; margin-block: .25rem .45rem; }
+.detail-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .2rem .9rem; font-size: .95rem; }
+.detail-list dt { font-weight: 600; }
+.tag-warning {
   display: inline-block;
   background: #fce8ea;
   color: #a1232f;
@@ -103,9 +135,11 @@ button:not(:disabled):hover { background: #11475e; color: #fff; }
   padding-inline: .35rem;
   font-weight: 700;
 }
-.repair-description { white-space: pre-wrap; }
+.quote-notes { white-space: pre-wrap; margin-top: .5rem; padding: .5rem .7rem; background: #f4f8fa; border-radius: .5rem; }
 
 @media (max-width: 34rem) {
-  form { grid-template-columns: minmax(0, 1fr); }
+  form, form > fieldset { grid-template-columns: minmax(0, 1fr); }
+  .detail-list { grid-template-columns: minmax(0, 1fr); }
+  .detail-list dd { margin-bottom: .35rem; }
   .actions { align-items: stretch; flex-direction: column; }
 }

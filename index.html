@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#123349">
-  <title>報修登記</title>
+  <title>新產品開發／報價</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icons/repair-192.png">
   <link rel="stylesheet" href="./style.css">
@@ -15,60 +15,145 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="page"><h1>報修登記</h1></div>
+    <div class="page">
+      <p class="eyebrow">開發部</p>
+      <h1>新產品開發／報價</h1>
+    </div>
   </header>
   <main class="page">
     <section class="panel" aria-labelledby="form-title">
-      <h2 id="form-title">新增報修</h2>
-      <p class="muted">清單公開可見，請使用示範姓名和地點，並避免填寫敏感資訊。</p>
-      <form id="repair-form">
-        <label>報修人
-          <input name="reporter_name" placeholder="例如：測試員甲" maxlength="100" required>
-        </label>
-        <label>地點或部門
-          <input name="location" placeholder="例如：示範辦公室" maxlength="200" required>
-        </label>
-        <label>類別
-          <select name="category" required>
-            <option value="">請選擇類別</option>
-            <option>設備</option>
-            <option>網路</option>
-            <option>環境</option>
-            <option>其他</option>
-          </select>
-        </label>
-        <label>緊急程度
-          <select name="urgency" required>
-            <option>低</option>
-            <option selected>中</option>
-            <option>高</option>
-          </select>
-        </label>
-        <label class="wide">問題說明
-          <textarea name="description" rows="4" maxlength="2000" placeholder="請描述發生的問題" required></textarea>
+      <h2 id="form-title">新增開發／報價需求</h2>
+      <p class="muted">清單公開可見，請使用示範資料，並避免填寫客戶名稱、價格等敏感資訊。</p>
+      <form id="quote-form">
+        <fieldset>
+          <legend>產品項目</legend>
+          <label class="wide">產品名稱
+            <input name="product_name" placeholder="例如：示範層板支架" maxlength="200" required>
+          </label>
+          <fieldset class="choices wide">
+            <legend>產品類別</legend>
+            <div class="choice-group">
+              <label class="choice"><input type="radio" name="product_category" value="模板" required>模板</label>
+              <label class="choice"><input type="radio" name="product_category" value="系統架">系統架</label>
+              <label class="choice"><input type="radio" name="product_category" value="零件">零件</label>
+              <label class="choice"><input type="radio" name="product_category" value="其它">其它項目</label>
+            </div>
+          </fieldset>
+          <label class="wide" id="category-note" hidden>其它項目說明
+            <input name="product_category_note" placeholder="請說明產品項目" maxlength="200" required disabled>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>業務提供資訊</legend>
+          <label>業務人員
+            <input name="sales_name" placeholder="例如：業務甲" maxlength="100" required>
+          </label>
+          <label>需求材質
+            <input name="material" placeholder="例如：SS400、SUS304" maxlength="200" required>
+          </label>
+          <label>需求數量
+            <input name="quantity" type="number" inputmode="numeric" min="1" max="100000000" step="1" placeholder="例如：500" required>
+          </label>
+          <label>表面處理種類
+            <select name="surface_treatment" required>
+              <option value="">請選擇表面處理</option>
+              <option>不需表面處理</option>
+              <option>熱浸鍍鋅</option>
+              <option>電鍍（吊電）</option>
+              <option>電鍍（爐桶）</option>
+              <option>機械鍍鋅</option>
+              <option>噴漆</option>
+            </select>
+          </label>
+          <label>加工關卡（道）
+            <input name="process_steps" type="number" inputmode="numeric" min="0" max="30" step="1" placeholder="加工製程道數" required>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>製圖與報價</legend>
+          <fieldset class="choices">
+            <legend>是否需要製圖</legend>
+            <div class="choice-group">
+              <label class="choice"><input type="radio" name="needs_drawing" value="是" required>需要製圖</label>
+              <label class="choice"><input type="radio" name="needs_drawing" value="否">不需製圖</label>
+            </div>
+          </fieldset>
+          <fieldset class="choices">
+            <legend>是否需要報價</legend>
+            <div class="choice-group">
+              <label class="choice"><input type="radio" name="needs_quote" value="是" required>需要報價</label>
+              <label class="choice"><input type="radio" name="needs_quote" value="否">不需報價</label>
+            </div>
+          </fieldset>
+        </fieldset>
+
+        <fieldset id="quote-details" hidden disabled>
+          <legend>報價內容</legend>
+          <fieldset class="choices wide">
+            <legend>報價類型（可複選）</legend>
+            <div class="choice-group">
+              <label class="choice"><input type="checkbox" name="sample_quote">樣品報價</label>
+              <label class="choice"><input type="checkbox" name="mass_quote">量產報價</label>
+            </div>
+          </fieldset>
+          <fieldset class="choices wide" id="mass-tiers" hidden disabled>
+            <legend>量產報價數量級距</legend>
+            <p class="hint">依量產數量分級報價，最多 5 個級距，送出時由小到大排列。</p>
+            <ol class="tier-list" id="tier-list"></ol>
+            <button class="secondary" id="add-tier" type="button">新增級距</button>
+          </fieldset>
+          <label>報價需求時間
+            <input name="quote_due_on" type="date" required>
+          </label>
+        </fieldset>
+
+        <fieldset id="quote-schedule" hidden disabled>
+          <legend>報價需求總天數</legend>
+          <p class="hint wide">從業務提供資訊到提供報價給業務，依序填入各階段日期，系統會計算總天數。</p>
+          <label>1. 業務提供資訊
+            <input name="info_provided_on" type="date" required>
+          </label>
+          <label>2. 確認資訊可用性
+            <input name="info_confirmed_on" type="date" required>
+          </label>
+          <label>3. 完成報價評估及成本計算
+            <input name="cost_evaluated_on" type="date" required>
+          </label>
+          <label>4. 提供報價給業務
+            <input name="quote_delivered_on" type="date" required>
+          </label>
+          <p class="wide schedule-summary">報價總天數：<output id="total-days" for="quote-form">尚未填完日期</output></p>
+          <p class="wide error" id="schedule-warning" role="status"></p>
+        </fieldset>
+
+        <label class="wide">備註
+          <textarea name="notes" rows="3" maxlength="2000" placeholder="其他補充說明（選填）"></textarea>
         </label>
         <div class="wide actions">
-          <button id="submit-repair" type="submit" disabled>送出報修</button>
+          <button id="submit-quote" type="submit" disabled>送出需求</button>
           <p id="form-message" role="status"></p>
         </div>
       </form>
-      <noscript><p>請啟用 JavaScript 以使用報修表單與清單。</p></noscript>
+      <noscript><p>請啟用 JavaScript 以使用開發／報價表單與清單。</p></noscript>
     </section>
 
     <section class="panel" aria-labelledby="list-title">
       <div class="section-heading">
-        <h2 id="list-title">最近 20 筆報修</h2>
+        <h2 id="list-title">最近 20 筆開發／報價需求</h2>
         <button class="secondary" id="refresh-list" type="button" disabled>重新整理</button>
       </div>
-      <div class="urgency-filters" role="group" aria-label="依緊急程度篩選">
-        <button class="secondary" type="button" data-urgency="" aria-pressed="true" disabled>全部</button>
-        <button class="secondary" type="button" data-urgency="高" aria-pressed="false" disabled>高</button>
-        <button class="secondary" type="button" data-urgency="中" aria-pressed="false" disabled>中</button>
-        <button class="secondary" type="button" data-urgency="低" aria-pressed="false" disabled>低</button>
+      <div class="category-filters" role="group" aria-label="依產品類別篩選">
+        <button class="secondary" type="button" data-category="" aria-pressed="true" disabled>全部</button>
+        <button class="secondary" type="button" data-category="模板" aria-pressed="false" disabled>模板</button>
+        <button class="secondary" type="button" data-category="系統架" aria-pressed="false" disabled>系統架</button>
+        <button class="secondary" type="button" data-category="零件" aria-pressed="false" disabled>零件</button>
+        <button class="secondary" type="button" data-category="其它" aria-pressed="false" disabled>其它</button>
       </div>
       <p id="list-message" role="status">正在載入清單…</p>
       <p id="filter-message" role="status"></p>
-      <ul id="repair-list" class="repair-list" aria-label="報修清單"></ul>
+      <ul id="quote-list" class="quote-list" aria-label="開發／報價需求清單"></ul>
     </section>
   </main>
 </body>
