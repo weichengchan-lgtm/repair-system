@@ -2,6 +2,14 @@
 
 業務提出新產品開發或報價需求時，以這個網頁登記需求內容，開發部可在同一頁查看最近的需求與報價時程。
 
+## 開啟 APP
+
+用手機掃描 QR Code，或直接開啟 <https://weichengchan-lgtm.github.io/repair-system/>。開啟後可依「安裝到主畫面」的說明安裝成 APP。
+
+<img src="文件/app-qrcode.png" alt="新產品開發/報價 APP 的 QR Code" width="280">
+
+需要大尺寸列印時，請使用 [SVG 版 QR Code](文件/app-qrcode.svg)。
+
 ## 表單內容
 
 | 區塊 | 欄位 |
@@ -21,43 +29,35 @@
 
 需要報價的需求會列出各階段的預計與實際日期、預計與實際總天數。尚未提供報價時顯示「進行中（至今 N 天）」，實際日期晚於預計日期時標示延後天數，並依實際或預計提供日標示「如期提供」、「實際晚於需求時間」、「已超過需求時間」或「預計晚於需求時間」。
 
-## 開發部登入與修改權限
+## 開發部人員上傳進度
 
-業務不需登入即可送出需求與查看清單。開發部人員以電子郵件和密碼登入後，在清單各筆需求展開「更新進度」，可修改：
+業務不需選擇人員即可送出需求與查看清單。開發部人員在「開發部人員」點選自己的姓名（陳偉政、王精美、林尚民），清單各筆需求會出現「上傳進度」，可填寫：
 
-- 處理狀態：待處理、處理中、已完成
-- 實際日期：確認資訊可用性、完成報價評估及成本計算、提供報價給業務（需依階段順序填寫，不可早於前一階段）
+- 處理狀態：待處理 → 處理中 → 已完成，只能往前，不可退回
+- 實際日期：確認資訊可用性、完成報價評估及成本計算、提供報價給業務（依階段順序填寫，不可早於前一階段，也不可晚於今天）
 
-其他欄位與刪除不開放修改。只有加入編輯名單（`quote_editors` 資料表）的帳號能修改，其他已登入帳號只能查看。
+按「上傳」並確認後即寫入資料庫，**已上傳的日期與狀態不可再修改**，清單會標示各階段由誰上傳，以及最後上傳的人員與時間。瀏覽器會記住上次點選的姓名，再點一次姓名可取消選取。全部上傳完成的需求不再顯示輸入欄位。
+
+點選姓名不需密碼，任何能開啟網頁的人都能選任一位人員上傳；鎖定規則由資料庫函式 `upload_quote_progress` 執行，網頁無法繞過。需求的其他欄位不開放修改，也不能刪除。
+
+若要更改人員名單，需同時修改 `index.html` 的姓名按鈕、`app.js` 的 `STAFF`，以及資料庫檢查條件與函式中的姓名清單。
 
 ## 資料庫設定
 
-1. 建立資料表：
-   - 全新的 Supabase 專案：在 SQL Editor 執行 [`supabase/schema.sql`](supabase/schema.sql)。
-   - 已執行過第一版 `schema.sql` 的專案：改執行 [`supabase/migrations/002_login_and_actual_dates.sql`](supabase/migrations/002_login_and_actual_dates.sql)，會加入實際日期欄位、編輯名單與修改權限，並把既有的「電鍍（爐桶）」資料改為「電鍍（滾鍍）」。
-2. 關閉公開註冊：在 Authentication 的登入設定關閉「Allow new users to sign up」，避免外人自行建立帳號。
-3. 建立開發部帳號：在 Authentication → Users 選「Add user」→「Create new user」，輸入電子郵件與密碼。
-4. 把帳號加入編輯名單（在 SQL Editor 執行，電子郵件換成實際帳號）：
+在 Supabase 的 SQL Editor 執行：
 
-   ```sql
-   insert into public.quote_editors (user_id)
-   select id from auth.users where email = 'dev@example.com';
-   ```
+- 全新的 Supabase 專案：[`supabase/schema.sql`](supabase/schema.sql)。
+- 已建立過資料表的專案：依序執行 [`supabase/migrations/`](supabase/migrations/) 中尚未執行的腳本。
+  - 只執行過第一版 `schema.sql`：先執行 `002_login_and_actual_dates.sql`，再執行 `003_staff_upload.sql`。
+  - 已執行過 `002`：只需執行 `003_staff_upload.sql`。它會移除帳號登入用的編輯名單，改為點選姓名上傳。
 
-   移除修改權限時執行：
-
-   ```sql
-   delete from public.quote_editors
-   where user_id = (select id from auth.users where email = 'dev@example.com');
-   ```
-
-資料表啟用資料列安全（RLS）：未登入與已登入的使用者都能新增與讀取，只有編輯名單中的帳號能修改處理狀態與實際日期，任何人都不能刪除。Supabase 網址與公開金鑰設定在 `config.js`。
+資料表啟用資料列安全（RLS）：所有使用者都能新增與讀取，不能直接修改或刪除，進度只能透過 `upload_quote_progress` 函式上傳。先前在 Authentication 建立的帳號已不再使用，可自行刪除。Supabase 網址與公開金鑰設定在 `config.js`。
 
 ## 安裝到主畫面
 
 以 HTTPS 開啟網頁。Android 可在 Chrome 選單選擇「安裝應用程式」或「加到主畫面」，iPhone 可在 Safari 的分享選單選擇「加入主畫面」。桌面 Chrome 或 Edge 可使用網址列的安裝圖示或瀏覽器選單。
 
-首次連線開啟網頁後，離線重新開啟會看到連線提示。需求送出、清單查詢與登入需要網路，需求內容不會存入離線快取。登入狀態會保留在該瀏覽器，共用電腦使用完畢請點選「登出」。
+首次連線開啟網頁後，離線重新開啟會看到連線提示。需求送出、清單查詢與上傳進度需要網路，需求內容不會存入離線快取。
 
 ## 舊版報修登記資料
 
