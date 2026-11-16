@@ -140,24 +140,14 @@
       <noscript><p>請啟用 JavaScript 以使用開發／報價表單與清單。</p></noscript>
     </section>
 
-    <section class="panel" aria-labelledby="auth-title">
-      <div class="section-heading">
-        <h2 id="auth-title">開發部登入</h2>
-        <button class="secondary" id="sign-out" type="button" hidden>登出</button>
+    <section class="panel" aria-labelledby="staff-title">
+      <h2 id="staff-title">開發部人員</h2>
+      <p class="muted" id="staff-status">點選姓名後，清單各筆需求會出現「上傳進度」，可填寫處理狀態與實際完成日期。上傳後不可修改。</p>
+      <div class="staff-picker" role="group" aria-labelledby="staff-title">
+        <button class="secondary" type="button" data-staff="陳偉政" aria-pressed="false">陳偉政</button>
+        <button class="secondary" type="button" data-staff="王精美" aria-pressed="false">王精美</button>
+        <button class="secondary" type="button" data-staff="林尚民" aria-pressed="false">林尚民</button>
       </div>
-      <p class="muted" id="auth-status">開發部人員登入後，可在清單中更新處理狀態與實際完成日期。</p>
-      <form id="sign-in-form">
-        <label>電子郵件
-          <input name="email" type="email" autocomplete="username" maxlength="320" required>
-        </label>
-        <label>密碼
-          <input name="password" type="password" autocomplete="current-password" required>
-        </label>
-        <div class="wide actions">
-          <button id="sign-in" type="submit" disabled>登入</button>
-          <p id="auth-message" role="status"></p>
-        </div>
-      </form>
     </section>
 
     <section class="panel" aria-labelledby="list-title">

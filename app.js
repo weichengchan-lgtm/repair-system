@@ -4,11 +4,13 @@
   const MAX_TIERS = 5;
   const DAY_MS = 24 * 60 * 60 * 1000;
   const STATUSES = ["待處理", "處理中", "已完成"];
+  const STAFF = ["陳偉政", "王精美", "林尚民"];
+  const STAFF_KEY = "new-product-quote-staff";
   const SCHEDULE_FIELDS = ["info_provided_on", "info_confirmed_on", "cost_evaluated_on", "quote_delivered_on"];
   const ACTUAL_FIELDS = [
-    ["actual_info_confirmed_on", "實際確認資訊可用性"],
-    ["actual_cost_evaluated_on", "實際完成報價評估及成本計算"],
-    ["actual_quote_delivered_on", "實際提供報價給業務"],
+    ["actual_info_confirmed_on", "實際確認資訊可用性", "p_actual_info_confirmed_on"],
+    ["actual_cost_evaluated_on", "實際完成報價評估及成本計算", "p_actual_cost_evaluated_on"],
+    ["actual_quote_delivered_on", "實際提供報價給業務", "p_actual_quote_delivered_on"],
   ];
   const COLUMNS = [
     "id", "sales_name", "product_name", "product_category", "product_category_note",
@@ -16,6 +18,8 @@
     "needs_drawing", "needs_quote", "sample_quote", "mass_quote_quantities",
     "quote_due_on", ...SCHEDULE_FIELDS, "quote_total_days",
     ...ACTUAL_FIELDS.map(([name]) => name), "actual_total_days",
+    ...ACTUAL_FIELDS.map(([name]) => name.replace(/_on$/, "_by")),
+    "status_updated_by", "last_uploaded_by", "last_uploaded_at",
     "notes", "status", "created_at",
   ].join(",");
 
@@ -36,12 +40,9 @@
   const addTier = document.querySelector("#add-tier");
   const totalDays = document.querySelector("#total-days");
   const scheduleWarning = document.querySelector("#schedule-warning");
-  const signInForm = document.querySelector("#sign-in-form");
-  const signIn = document.querySelector("#sign-in");
-  const signOut = document.querySelector("#sign-out");
-  const authStatus = document.querySelector("#auth-status");
-  const authMessage = document.querySelector("#auth-message");
-  const defaultAuthStatus = authStatus.textContent;
+  const staffButtons = document.querySelectorAll(".staff-picker button");
+  const staffStatus = document.querySelector("#staff-status");
+  const defaultStaffStatus = staffStatus.textContent;
 
   const numberFormat = new Intl.NumberFormat("zh-TW");
   const timeFormat = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeStyle: "short" });
@@ -165,7 +166,6 @@
   });
   addTier.addEventListener("click", () => addTierRow().focus());
   form.addEventListener("submit", (event) => event.preventDefault());
-  signInForm.addEventListener("submit", (event) => event.preventDefault());
   resetForm();
 
   // ---------- 清單顯示 ----------
@@ -220,12 +220,12 @@
     }
 
     const stages = [
-      ["業務提供資訊", record.info_provided_on, record.info_provided_on],
-      ["確認資訊可用性", record.info_confirmed_on, record.actual_info_confirmed_on],
-      ["完成報價評估及成本計算", record.cost_evaluated_on, record.actual_cost_evaluated_on],
-      ["提供報價給業務", record.quote_delivered_on, record.actual_quote_delivered_on],
+      ["業務提供資訊", record.info_provided_on, record.info_provided_on, null],
+      ["確認資訊可用性", record.info_confirmed_on, record.actual_info_confirmed_on, record.actual_info_confirmed_by],
+      ["完成報價評估及成本計算", record.cost_evaluated_on, record.actual_cost_evaluated_on, record.actual_cost_evaluated_by],
+      ["提供報價給業務", record.quote_delivered_on, record.actual_quote_delivered_on, record.actual_quote_delivered_by],
     ];
-    for (const [stage, planned, actual] of stages) {
+    for (const [stage, planned, actual, uploader] of stages) {
       const row = body.insertRow();
       const th = document.createElement("th");
       th.scope = "row";
@@ -234,6 +234,7 @@
       row.insertCell().textContent = formatDate(planned);
       const cell = row.insertCell();
       cell.textContent = actual ? formatDate(actual) : "—";
+      if (uploader) cell.append(" ", tag(uploader, "uploader"));
       if (actual && actual > planned) {
         cell.append(" ", tag(`延後 ${daysBetween(planned, actual)} 天`, "tag-warning"));
       }
@@ -259,53 +260,89 @@
     return label;
   }
 
+  function lockedValue(labelText, value) {
+    const box = document.createElement("div");
+    const label = document.createElement("span");
+    const text = document.createElement("p");
+    box.className = "locked-field";
+    label.className = "locked-label";
+    label.textContent = labelText;
+    text.append(value, " ", tag("已上傳", "tag-locked"));
+    box.append(label, text);
+    return box;
+  }
+
+  function uploadErrorMessage(error) {
+    // 資料庫函式回傳的中文訊息可直接顯示；其他錯誤（含檢查條件）改用通用說明。
+    if (["22023", "42501", "P0002"].includes(error?.code) && error.message) return error.message;
+    if (error?.code === "23514") return "上傳失敗，請依階段順序填寫實際日期，且不可早於前一階段。";
+    return "上傳失敗，請確認網路後再試一次。";
+  }
+
   function progressEditor(record) {
+    const statusIndex = STATUSES.indexOf(record.status);
+    const openDates = record.needs_quote ? ACTUAL_FIELDS.filter(([name]) => !record[name]) : [];
     const details = document.createElement("details");
     const summary = document.createElement("summary");
     const editor = document.createElement("form");
-    const status = document.createElement("select");
-    const actions = document.createElement("div");
-    const save = document.createElement("button");
-    const message = document.createElement("p");
-
     details.className = "progress-editor";
-    summary.textContent = "更新進度";
+    summary.textContent = `上傳進度（${selectedStaff}）`;
+    details.append(summary, editor);
+
+    if (statusIndex === STATUSES.length - 1 && !openDates.length) {
+      const done = document.createElement("p");
+      done.className = "wide muted-note";
+      done.textContent = "此需求的處理狀態與實際日期都已上傳完成，無法再修改。";
+      editor.append(done);
+      return details;
+    }
+
+    const status = document.createElement("select");
     status.name = "status";
-    for (const value of STATUSES) status.add(new Option(value, value, false, value === record.status));
+    // 處理狀態只能維持或往前，不顯示已經過的狀態。
+    for (const value of STATUSES.slice(statusIndex)) status.add(new Option(value, value, false, value === record.status));
     editor.append(field("處理狀態", status));
 
     if (record.needs_quote) {
       for (const [name, text] of ACTUAL_FIELDS) {
+        if (record[name]) {
+          const by = record[name.replace(/_on$/, "_by")];
+          editor.append(lockedValue(text, `${formatDate(record[name])}${by ? `（${by}）` : ""}`));
+          continue;
+        }
         const input = document.createElement("input");
         input.type = "date";
         input.name = name;
-        input.value = record[name] ?? "";
         input.min = record.info_provided_on;
         input.max = todayValue();
         editor.append(field(text, input));
       }
     }
 
-    save.type = "submit";
-    save.textContent = "儲存進度";
+    const actions = document.createElement("div");
+    const upload = document.createElement("button");
+    const message = document.createElement("p");
+    upload.type = "submit";
+    upload.textContent = "上傳";
     message.setAttribute("role", "status");
     actions.className = "wide actions";
-    actions.append(save, message);
+    actions.append(upload, message);
     editor.append(actions);
-    details.append(summary, editor);
 
     editor.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (save.disabled) return;
+      if (upload.disabled) return;
 
-      const changes = { status: status.value };
-      if (record.needs_quote) {
-        for (const [name] of ACTUAL_FIELDS) changes[name] = editor.elements[name].value || null;
-      }
-      const actual = ACTUAL_FIELDS.map(([name]) => changes[name]);
+      const staff = selectedStaff;
+      const actual = ACTUAL_FIELDS.map(([name]) => record[name] || editor.elements[name]?.value || null);
+      const newDates = ACTUAL_FIELDS.filter(([name]) => !record[name] && editor.elements[name]?.value);
       let problem = "";
-      if (record.needs_quote && actual.some((value, i) => value && actual.slice(0, i).some((prev) => !prev))) {
+      if (!STAFF.includes(staff)) problem = "請先在「開發部人員」點選姓名。";
+      else if (status.value === record.status && !newDates.length) problem = "沒有新的進度可以上傳。";
+      else if (actual.some((value, i) => value && actual.slice(0, i).some((prev) => !prev))) {
         problem = "請依階段順序填寫實際日期，前一階段完成後才能填寫下一階段。";
+      } else if (actual.some((value) => value && value > todayValue())) {
+        problem = "實際日期不可晚於今天。";
       } else if (record.needs_quote) {
         problem = scheduleProblem([record.info_provided_on, ...actual]);
       }
@@ -314,27 +351,29 @@
         return;
       }
 
-      save.disabled = true;
-      showMessage(message, "正在儲存…");
+      const summaryLines = [`上傳人員：${staff}`];
+      if (status.value !== record.status) summaryLines.push(`處理狀態：${record.status} → ${status.value}`);
+      for (const [name, text] of newDates) summaryLines.push(`${text}：${formatDate(editor.elements[name].value)}`);
+      if (!window.confirm(`${summaryLines.join("\n")}\n\n上傳後不可修改，確定要上傳嗎？`)) return;
+
+      const params = { p_id: record.id, p_staff: staff, p_status: status.value };
+      for (const [name, , param] of newDates) params[param] = editor.elements[name].value;
+
+      upload.disabled = true;
+      showMessage(message, "正在上傳…");
       try {
-        const { data, error } = await client
-          .from("new_product_requests")
-          .update(changes)
-          .eq("id", record.id)
-          .select(COLUMNS)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) {
-          showMessage(message, "沒有修改權限，請確認帳號已加入開發部編輯名單。", "error");
+        const { data, error } = await client.rpc("upload_quote_progress", params);
+        if (error) {
+          showMessage(message, uploadErrorMessage(error), "error");
           return;
         }
         records = records.map((item) => (item.id === data.id ? data : item));
         renderQuotes();
-        showMessage(listMessage, `已更新「${data.product_name}」的進度。`, "success");
+        showMessage(listMessage, `${staff} 已上傳「${data.product_name}」的進度。`, "success");
       } catch {
-        showMessage(message, "儲存失敗，請確認日期順序與網路後再試一次。", "error");
+        showMessage(message, uploadErrorMessage(null), "error");
       } finally {
-        save.disabled = false;
+        upload.disabled = false;
       }
     });
     return details;
@@ -356,6 +395,12 @@
     time.dateTime = record.created_at;
     time.textContent = timeFormat.format(new Date(record.created_at));
     meta.append(`業務 ${record.sales_name} · `, tag(record.status, `status status-${STATUSES.indexOf(record.status)}`), " · ", time);
+    if (record.last_uploaded_by) {
+      const uploaded = document.createElement("time");
+      uploaded.dateTime = record.last_uploaded_at;
+      uploaded.textContent = timeFormat.format(new Date(record.last_uploaded_at));
+      meta.append(` · 最後上傳 ${record.last_uploaded_by} `, uploaded);
+    }
 
     details.className = "detail-list";
     details.append(
@@ -379,7 +424,7 @@
       notes.textContent = record.notes;
       item.append(notes);
     }
-    if (isEditor) item.append(progressEditor(record));
+    if (selectedStaff) item.append(progressEditor(record));
     return item;
   }
 
@@ -395,12 +440,7 @@
   let client;
   try {
     client = window.supabase.createClient(config.url, config.publishableKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-        storageKey: "new-product-quote-auth",
-      },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
   } catch {
     showMessage(formMessage, "無法初始化資料服務，請重新載入頁面或確認服務設定。", "error");
@@ -411,9 +451,7 @@
   let listRequest = 0;
   let records = [];
   let selectedCategory = "";
-  let isEditor = false;
-  let authRequest = 0;
-  let appliedUserId;
+  let selectedStaff = "";
 
   function renderQuotes() {
     const visible = selectedCategory
@@ -461,70 +499,36 @@
     }
   }
 
-  // ---------- 開發部登入 ----------
+  // ---------- 開發部人員 ----------
 
-  async function applySession(session) {
-    const user = session?.user ?? null;
-    const userId = user?.id ?? null;
-    // 切回分頁時 Supabase 可能再次通知 SIGNED_IN，同一帳號不重畫，避免清掉正在編輯的內容。
-    if (userId === appliedUserId) return;
-    appliedUserId = userId;
-    const request = ++authRequest;
-
-    let editor = false;
-    let status = defaultAuthStatus;
-    if (user) {
-      const { data, error } = await client
-        .from("quote_editors")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (request !== authRequest) return;
-      editor = !error && Boolean(data);
-      if (error) status = `已登入 ${user.email}，但目前無法確認修改權限，請重新整理頁面。`;
-      else if (editor) status = `已登入 ${user.email}，可在清單各筆需求展開「更新進度」修改處理狀態與實際日期。`;
-      else status = `已登入 ${user.email}，但此帳號尚未加入開發部編輯名單，無法修改資料，請聯絡管理員。`;
+  function selectStaff(name) {
+    selectedStaff = STAFF.includes(name) ? name : "";
+    for (const button of staffButtons) {
+      button.setAttribute("aria-pressed", String(button.dataset.staff === selectedStaff));
     }
-
-    isEditor = editor;
-    authStatus.textContent = status;
-    signInForm.hidden = Boolean(user);
-    signOut.hidden = !user;
+    staffStatus.textContent = selectedStaff
+      ? `目前人員：${selectedStaff}。請在清單各筆需求展開「上傳進度」，上傳後不可修改。再點一次姓名可取消選取。`
+      : defaultStaffStatus;
+    try {
+      if (selectedStaff) localStorage.setItem(STAFF_KEY, selectedStaff);
+      else localStorage.removeItem(STAFF_KEY);
+    } catch {
+      // 無法使用瀏覽器儲存空間時，只是不記住選取的人員。
+    }
     renderQuotes();
   }
 
-  client.auth.onAuthStateChange((event, session) => {
-    if (!["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT"].includes(event)) return;
-    // 不在回呼中直接等待 Supabase 查詢，避免與驗證流程互相等待。
-    setTimeout(() => void applySession(session), 0);
-  });
+  for (const button of staffButtons) {
+    button.addEventListener("click", () => {
+      selectStaff(button.dataset.staff === selectedStaff ? "" : button.dataset.staff);
+    });
+  }
 
-  signInForm.addEventListener("submit", async () => {
-    if (signIn.disabled) return;
-    const data = new FormData(signInForm);
-    signIn.disabled = true;
-    showMessage(authMessage, "正在登入…");
-    try {
-      const { error } = await client.auth.signInWithPassword({
-        email: data.get("email").trim(),
-        password: data.get("password"),
-      });
-      if (error) throw error;
-      signInForm.reset();
-      showMessage(authMessage, "");
-    } catch {
-      showMessage(authMessage, "登入失敗，請確認電子郵件與密碼。", "error");
-    } finally {
-      signIn.disabled = false;
-    }
-  });
-
-  signOut.addEventListener("click", async () => {
-    signOut.disabled = true;
-    const { error } = await client.auth.signOut({ scope: "local" });
-    signOut.disabled = false;
-    if (error) showMessage(authMessage, "登出失敗，請重新整理頁面後再試一次。", "error");
-  });
+  try {
+    selectStaff(localStorage.getItem(STAFF_KEY) ?? "");
+  } catch {
+    selectStaff("");
+  }
 
   function buildRecord() {
     const data = new FormData(form);
@@ -594,6 +598,5 @@
 
   refresh.addEventListener("click", loadQuotes);
   submit.disabled = false;
-  signIn.disabled = false;
   void loadQuotes();
 })();

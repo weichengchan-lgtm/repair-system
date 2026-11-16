@@ -1,5 +1,5 @@
 -- 全新安裝用：以單一交易建立資料表、權限與政策，避免只套用部分設定。
--- 已執行過舊版 schema.sql 的專案，請改執行 migrations/002_login_and_actual_dates.sql。
+-- 已建立過舊版資料表的專案，請依序執行 migrations/ 中尚未執行的升級腳本。
 begin;
 
 -- 建立新產品開發／報價需求資料表，識別碼、建立時間與處理狀態由資料庫自動產生。
@@ -35,11 +35,19 @@ create table public.new_product_requests (
     quote_delivered_on date,
     quote_total_days integer generated always as (quote_delivered_on - info_provided_on) stored,
 
-    -- 實際報價時程：由開發部登入後填寫，起點沿用業務提供資訊的日期。
+    -- 實際報價時程：由開發部人員點選姓名後上傳，起點沿用業務提供資訊的日期。
     actual_info_confirmed_on date,
     actual_cost_evaluated_on date,
     actual_quote_delivered_on date,
     actual_total_days integer generated always as (actual_quote_delivered_on - info_provided_on) stored,
+
+    -- 上傳紀錄：各階段實際日期、處理狀態由誰上傳，以及最後一次上傳的人與時間。
+    actual_info_confirmed_by text,
+    actual_cost_evaluated_by text,
+    actual_quote_delivered_by text,
+    status_updated_by text,
+    last_uploaded_by text,
+    last_uploaded_at timestamptz,
 
     notes text,
     status text not null default '待處理',
@@ -128,25 +136,32 @@ create table public.new_product_requests (
                 and (actual_quote_delivered_on is null or actual_cost_evaluated_on <= actual_quote_delivered_on))
         ),
 
+    -- CHECK：上傳人員只能是開發部人員；記錄上傳人員的日期必須有值。
+    constraint new_product_requests_staff_check
+        check (
+            (actual_info_confirmed_by is null or actual_info_confirmed_by in ('陳偉政', '王精美', '林尚民'))
+            and (actual_cost_evaluated_by is null or actual_cost_evaluated_by in ('陳偉政', '王精美', '林尚民'))
+            and (actual_quote_delivered_by is null or actual_quote_delivered_by in ('陳偉政', '王精美', '林尚民'))
+            and (status_updated_by is null or status_updated_by in ('陳偉政', '王精美', '林尚民'))
+            and (last_uploaded_by is null or last_uploaded_by in ('陳偉政', '王精美', '林尚民'))
+            and (actual_info_confirmed_by is null or actual_info_confirmed_on is not null)
+            and (actual_cost_evaluated_by is null or actual_cost_evaluated_on is not null)
+            and (actual_quote_delivered_by is null or actual_quote_delivered_on is not null)
+            and ((last_uploaded_by is null) = (last_uploaded_at is null))
+        ),
+
     -- CHECK：處理狀態只接受列出的值。
     constraint new_product_requests_status_check
         check (status in ('待處理', '處理中', '已完成'))
 );
 
--- 可修改需求的開發部帳號名單，由管理員在 SQL Editor 新增或移除。
-create table public.quote_editors (
-    user_id uuid primary key references auth.users (id) on delete cascade,
-    created_at timestamptz not null default now()
-);
-
 -- GRANT：清除可能來自預設權限的授權。
 revoke all privileges on table public.new_product_requests
     from public, anon, authenticated, service_role;
-revoke all privileges on table public.quote_editors
-    from public, anon, authenticated, service_role;
 
--- GRANT：未登入與已登入的使用者都能讀取清單、新增表單欄位。
--- 新增時由資料庫填入 id、created_at、status 與兩個總天數，實際日期留空。
+-- GRANT：網頁使用者都能讀取清單、新增表單欄位。
+-- 新增時由資料庫填入 id、created_at、status 與兩個總天數，實際日期與上傳紀錄留空。
+-- 不開放直接修改或刪除，進度只能透過 upload_quote_progress 上傳。
 grant select on table public.new_product_requests to anon, authenticated;
 grant insert (
     product_name, product_category, product_category_note,
@@ -156,16 +171,8 @@ grant insert (
     notes
 ) on table public.new_product_requests to anon, authenticated;
 
--- GRANT：已登入的使用者只能修改處理狀態與實際日期，是否允許再由 RLS 檢查編輯名單。
-grant update (status, actual_info_confirmed_on, actual_cost_evaluated_on, actual_quote_delivered_on)
-    on table public.new_product_requests to authenticated;
-
--- GRANT：已登入的使用者可查詢自己是否在編輯名單中。
-grant select on table public.quote_editors to authenticated;
-
 -- RLS：啟用資料列安全。
 alter table public.new_product_requests enable row level security;
-alter table public.quote_editors enable row level security;
 
 create policy new_product_requests_select
     on public.new_product_requests
@@ -173,27 +180,97 @@ create policy new_product_requests_select
     to anon, authenticated
     using (true);
 
--- RLS：新增的資料列必須是待處理，不建立刪除政策。
+-- RLS：新增的資料列必須是待處理，不建立修改或刪除政策。
 create policy new_product_requests_insert
     on public.new_product_requests
     for insert
     to anon, authenticated
     with check (status = '待處理');
 
--- RLS：只有編輯名單中的帳號可以修改需求。
-create policy new_product_requests_editor_update
-    on public.new_product_requests
-    for update
-    to authenticated
-    using (exists (select 1 from public.quote_editors e where e.user_id = (select auth.uid())))
-    with check (exists (select 1 from public.quote_editors e where e.user_id = (select auth.uid())));
+-- 開發部上傳進度：點選姓名後呼叫此函式，資料庫檢查後才寫入。
+-- 規則：已上傳的實際日期不可修改，處理狀態只能往前（待處理 → 處理中 → 已完成），實際日期不可晚於今天。
+-- 參數為 null 表示該欄位這次不上傳。
+create function public.upload_quote_progress(
+    p_id uuid,
+    p_staff text,
+    p_status text,
+    p_actual_info_confirmed_on date default null,
+    p_actual_cost_evaluated_on date default null,
+    p_actual_quote_delivered_on date default null
+)
+returns public.new_product_requests
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    statuses constant text[] := array['待處理', '處理中', '已完成'];
+    today constant date := (now() at time zone 'Asia/Taipei')::date;
+    current_row public.new_product_requests;
+    result public.new_product_requests;
+begin
+    if p_staff is null or p_staff not in ('陳偉政', '王精美', '林尚民') then
+        raise exception '請先點選開發部人員。' using errcode = '22023';
+    end if;
+    if p_status is null or array_position(statuses, p_status) is null then
+        raise exception '處理狀態不正確。' using errcode = '22023';
+    end if;
 
--- RLS：已登入的使用者只能看到自己的編輯名單資料列。
-create policy quote_editors_select_own
-    on public.quote_editors
-    for select
-    to authenticated
-    using (user_id = (select auth.uid()));
+    select * into current_row
+        from public.new_product_requests
+        where id = p_id
+        for update;
+    if not found then
+        raise exception '找不到這筆需求，請重新整理清單。' using errcode = 'P0002';
+    end if;
+
+    if array_position(statuses, p_status) < array_position(statuses, current_row.status) then
+        raise exception '處理狀態已上傳，不可退回。' using errcode = '42501';
+    end if;
+    if current_row.actual_info_confirmed_on <> p_actual_info_confirmed_on
+        or current_row.actual_cost_evaluated_on <> p_actual_cost_evaluated_on
+        or current_row.actual_quote_delivered_on <> p_actual_quote_delivered_on then
+        raise exception '已上傳的日期不可修改。' using errcode = '42501';
+    end if;
+    if greatest(p_actual_info_confirmed_on, p_actual_cost_evaluated_on, p_actual_quote_delivered_on) > today then
+        raise exception '實際日期不可晚於今天。' using errcode = '22023';
+    end if;
+    if p_status = current_row.status
+        and (p_actual_info_confirmed_on is null or current_row.actual_info_confirmed_on is not null)
+        and (p_actual_cost_evaluated_on is null or current_row.actual_cost_evaluated_on is not null)
+        and (p_actual_quote_delivered_on is null or current_row.actual_quote_delivered_on is not null) then
+        raise exception '沒有新的進度可以上傳。' using errcode = '22023';
+    end if;
+
+    -- SET 右側引用的是更新前的值，只填入原本空白的欄位並記錄上傳人員。
+    update public.new_product_requests set
+        actual_info_confirmed_on = coalesce(actual_info_confirmed_on, p_actual_info_confirmed_on),
+        actual_info_confirmed_by = case
+            when actual_info_confirmed_on is null and p_actual_info_confirmed_on is not null then p_staff
+            else actual_info_confirmed_by end,
+        actual_cost_evaluated_on = coalesce(actual_cost_evaluated_on, p_actual_cost_evaluated_on),
+        actual_cost_evaluated_by = case
+            when actual_cost_evaluated_on is null and p_actual_cost_evaluated_on is not null then p_staff
+            else actual_cost_evaluated_by end,
+        actual_quote_delivered_on = coalesce(actual_quote_delivered_on, p_actual_quote_delivered_on),
+        actual_quote_delivered_by = case
+            when actual_quote_delivered_on is null and p_actual_quote_delivered_on is not null then p_staff
+            else actual_quote_delivered_by end,
+        status = p_status,
+        status_updated_by = case when status <> p_status then p_staff else status_updated_by end,
+        last_uploaded_by = p_staff,
+        last_uploaded_at = now()
+    where id = p_id
+    returning * into result;
+
+    return result;
+end;
+$$;
+
+-- GRANT：函式預設開放給 PUBLIC，先收回再只開放給網頁使用的角色。
+revoke all on function public.upload_quote_progress(uuid, text, text, date, date, date) from public;
+grant execute on function public.upload_quote_progress(uuid, text, text, date, date, date)
+    to anon, authenticated;
 
 -- 權限與政策設定完成後一併提交。
 commit;

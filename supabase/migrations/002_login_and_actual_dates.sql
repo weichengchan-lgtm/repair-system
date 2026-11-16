@@ -1,4 +1,5 @@
 -- 已執行過第一版 schema.sql 的專案使用：更名滾鍍、加入實際日期與開發部登入修改權限。
+-- 執行本檔後，請接著執行 003_staff_upload.sql。
 -- 全新安裝請直接執行 supabase/schema.sql，不需要執行本檔。
 begin;
 
